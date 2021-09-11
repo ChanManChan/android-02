@@ -7,7 +7,6 @@ import android.widget.Toast
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.*
 import com.google.android.material.snackbar.Snackbar
 import com.u4.todoapp.R
@@ -16,7 +15,8 @@ import com.u4.todoapp.data.viewmodel.ToDoViewModel
 import com.u4.todoapp.databinding.FragmentListBinding
 import com.u4.todoapp.fragments.SharedViewModel
 import com.u4.todoapp.fragments.list.adapter.ListAdapter
-import jp.wasabeef.recyclerview.animators.SlideInUpAnimator
+import com.u4.todoapp.utils.hideKeyboard
+import com.u4.todoapp.utils.observeOnce
 
 class ListFragment : Fragment(), SearchView.OnQueryTextListener {
 
@@ -37,9 +37,10 @@ class ListFragment : Fragment(), SearchView.OnQueryTextListener {
 
         setupRecyclerView()
 
-        mToDoViewModel.getAllData.observe(viewLifecycleOwner, Observer { data ->
+        mToDoViewModel.getAllData.observe(viewLifecycleOwner, { data ->
             mSharedViewModel.checkIfDatabaseEmpty(data)
             adapter.setData(data)
+            binding.recyclerView.scheduleLayoutAnimation()
         })
 
         //        mSharedViewModel.emptyDatabase.observe(viewLifecycleOwner, Observer {
@@ -51,6 +52,7 @@ class ListFragment : Fragment(), SearchView.OnQueryTextListener {
 
         // set up menu
         setHasOptionsMenu(true)
+        hideKeyboard(requireActivity())
 
         return binding.root
     }
@@ -60,9 +62,6 @@ class ListFragment : Fragment(), SearchView.OnQueryTextListener {
         recyclerView.adapter = adapter
         recyclerView.layoutManager =
             StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
-        recyclerView.itemAnimator = SlideInUpAnimator().apply {
-            addDuration = 300
-        }
         swipeToDelete(recyclerView)
     }
 
@@ -84,7 +83,7 @@ class ListFragment : Fragment(), SearchView.OnQueryTextListener {
         val snackBar = Snackbar.make(view, "Deleted '${deletedItem.title}'", Snackbar.LENGTH_LONG)
         snackBar.setAction("Undo") {
             mToDoViewModel.insertData(deletedItem)
-            adapter.notifyItemChanged(position)
+//            adapter.notifyItemChanged(position)
         }.show()
     }
 
@@ -104,12 +103,10 @@ class ListFragment : Fragment(), SearchView.OnQueryTextListener {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_delete_all -> confirmRemoval()
-            R.id.menu_priority_high -> mToDoViewModel.sortByHighPriority.observe(
-                this,
-                Observer { adapter.setData(it) })
-            R.id.menu_priority_low -> mToDoViewModel.sortByLowPriority.observe(
-                this,
-                Observer { adapter.setData(it) })
+            R.id.menu_priority_high -> mToDoViewModel.sortByHighPriority.observe(viewLifecycleOwner,
+                { adapter.setData(it) })
+            R.id.menu_priority_low -> mToDoViewModel.sortByLowPriority.observe(viewLifecycleOwner,
+                { adapter.setData(it) })
         }
         return super.onOptionsItemSelected(item)
     }
@@ -146,7 +143,7 @@ class ListFragment : Fragment(), SearchView.OnQueryTextListener {
 
     private fun searchThroughDatabase(query: String) {
         val searchQuery = "%$query%"
-        mToDoViewModel.searchDatabase(searchQuery).observe(this, Observer { list ->
+        mToDoViewModel.searchDatabase(searchQuery).observeOnce(viewLifecycleOwner, { list ->
             list?.let { adapter.setData(it) }
         })
     }
